@@ -1,33 +1,49 @@
-// Paso 1
+// importo modulos
 const fs = require("fs");
-
 const express = require("express");
 const app = express();
 const axios = require("axios");
+
+//defino numero de puerto para el servidor
 const PORT = process.env.PORT || 3000;
 
 //levanto servidor en puerto PORT.
 app.listen(PORT, () => {
   console.log("Servidor Express iniciado en el puerto" + PORT);
 });
+
 // Ruta raíz para mostrar el HTML
 app.get("/", (req, res) => {
   res.sendFile(__dirname + "/index.html");
 });
 
+//------------------REQUERIMIENTO 1-----------------
+
 //ruta que Sirve los datos de Deportes.json y los muestra en la pagina
 app.get("/deportes", (req, res) => {
   try {
-    // Leer el archivo JSON de forma síncrona
-    const data = fs.readFileSync("Deportes.json", "utf-8");
+    const data = fs.readFileSync("Deportes.json", "utf-8"); //leo el archivo json
     const deportes = JSON.parse(data).deportes;
-    // Enviar los datos de los deportes como respuesta en formato JSON
     res.json({ deportes: deportes });
   } catch (error) {
-    console.error("Error al leer el archivo JSON:", error);
-    res.status(500).send("Error interno del servidor");
+    if (error.code === "ENOENT") {
+      // Error: archivo no encontrado
+      console.error('Error: El archivo "Deportes.json" no existe.');
+      // Informo al usuario sobre cómo crear el archivo
+      return res
+        .status(404)
+        .send(
+          'El archivo "Deportes.json" no existe; vaya a /agregar?nombre="deporte"&precio="precio" para crearlo.'
+        );
+    } else {
+      // Otro tipo de error al leer el archivo
+      console.error('Error al leer el archivo "Deportes.json":', error);
+      return res.status(500).send("Error interno del servidor");
+    }
   }
 });
+
+//------------------REQUERIMIENTO 2-----------------
 
 // Ruta para almacenar en archivo json los deportes agregados
 
@@ -35,22 +51,33 @@ app.get("/agregar", (req, res) => {
   try {
     const { nombre, precio } = req.query;
     if (!nombre || !precio) {
+      //valido que existan los parametros
       return res
         .status(400)
-        .send("Se requieren los parámetros 'nombre' y 'precio'");
+        .send(
+          "Se requieren los parámetros 'nombre' y 'precio' en el siguiente formato ?nombre=deporte&precio=valor"
+        );
     }
-    const deporte = { nombre, precio };
-    let deportes = [];
+    const deporte = { nombre, precio }; //creo el objeto deporte
+    let deportes = []; //creo el arreglo deportes
     try {
-      const data = fs.readFileSync("Deportes.json", "utf-8");
+      const data = fs.readFileSync("Deportes.json", "utf-8"); //leo el archivo
       if (data) {
         deportes = JSON.parse(data).deportes;
       }
     } catch (error) {
-      // Si el archivo no existe o no es válido, se maneja aquí
+      // error para la falta de archivo
+      if (error.code === "ENOENT") {
+        // Error de archivo no encontrado
+        console.error('El archivo "Deportes.json" no existe.');
+      } else {
+        // Otro tipo de error al leer el archivo
+        console.error('Error al leer el archivo "Deportes.json":', error);
+        return res.status(500).send("Error interno del servidor");
+      }
     }
 
-    // Validar que el nombre del deporte no esté repetido
+    // Valido que el nombre del deporte no esté repetido
     const deporteRepetido = deportes.find((d) => d.nombre === nombre);
     if (deporteRepetido) {
       return res.status(400).send("El nombre del deporte ya existe");
@@ -66,6 +93,8 @@ app.get("/agregar", (req, res) => {
   }
 });
 
+//------------------REQUERIMIENTO 3-----------------
+
 //ruta para la edicion del precio del deporte
 app.get("/editar", (req, res) => {
   try {
@@ -74,48 +103,33 @@ app.get("/editar", (req, res) => {
       !nombre ||
       !precio ||
       precio === isNaN ||
-      (!isNaN(precio) && precio < 0)
+      (!isNaN(precio) && precio < 0) //valido que el precio sea un numero y sea mayor a 0
     ) {
       return res
         .status(400)
         .send("Por favor, ingrese un nombre y un precio válido.");
+      
     }
 
-    let deportes = [];
+    let deportes = []; // creo el arreglo deportes
     try {
       const data = fs.readFileSync("Deportes.json", "utf-8");
       if (data) {
-        deportes = JSON.parse(data).deportes;
+        deportes = JSON.parse(data).deportes; //cargo los datos del archivo en la variable deportes
       }
 
-      // Buscar si el deporte ya existe en la lista
+      // Busco si el deporte ya existe en la lista
       const deporteRepetido = deportes.find((d) => d.nombre === nombre);
       if (deporteRepetido) {
-        // Actualizar el precio del deporte existente
+        // Actualizo el precio del deporte existente
         deporteRepetido.precio = precio;
       } else {
-        // Si no existe, agregarlo a la lista
+        // Si no existe, informo de como agregarlo a la lista
         res
           .status(405)
           .send(
             "Si desea agregar un deporte nuevo, utilize la ruta /agregar , para editar debe existir el deporte en la lista, revise el nombre del deporte."
           );
-        const html = `
-        <!DOCTYPE html>
-        <html>
-        <head>
-            <title>Popup desde Express</title>
-            <script>
-                window.onload = function() {
-                    alert('¡Este es un popup desde Express!');
-                };
-            </script>
-        </head>
-        <body>
-            <h1>Página con Popup</h1>
-        </body>
-        </html>`;
-        res.send(html);
       }
 
       // Escribir la lista actualizada en el archivo
@@ -132,55 +146,39 @@ app.get("/editar", (req, res) => {
   }
 });
 
+//------------------REQUERIMIENTO 4-----------------
 
-//ruta para eliminar deporte
-// app.get("/eliminar/:nombre", (req, res) => {
-//   const nombre = req.params.nombre;
-//   const data = JSON.parse(fs.readFileSync("Deportes.json", "utf8"));
-//   let deportes = data.deportes;
-//   let deporteEncontrado = false;
-
-//   deportes.forEach((deporte, index) => {
-//       if (deporte.nombre === nombre) {
-//           // Eliminar el deporte encontrado
-//           deportes.splice(index, 1);
-//           deporteEncontrado = true;
-//       }
-//   });
-
-//   if (deporteEncontrado) {
-//       fs.writeFileSync("Deportes.json", JSON.stringify(data));
-//       res.send("Deporte eliminado correctamente");
-//   } else {
-//       res.send("El deporte buscado no existe");
-//   }
-// });
-
+//ruta para la eliminacion del deporte de la lista
 app.get("/eliminar/:nombre", (req, res) => {
   try {
-    const { nombre } = req.params; // Usar req.params para obtener los parámetros de la ruta
+    const { nombre } = req.params; // Uso req.params para obtener los parámetros de la ruta
 
     if (!nombre) {
-      return res.status(400).send("Por favor, ingrese un nombre válido para eliminar.");
+      return res
+        .status(400)
+        .send("Por favor, ingrese un nombre válido para eliminar.");
     }
 
-    let deportes = [];
+    let deportes = []; //creo el array y almaceno el contenido del json en el array
     try {
       const data = fs.readFileSync("Deportes.json", "utf-8");
       if (data) {
         deportes = JSON.parse(data).deportes;
       }
 
-      // Filtrar el deporte a eliminar
+      // Filtro el deporte a eliminar para excluir el deporte con el nombre proporcionado
       const deportesActualizados = deportes.filter((d) => d.nombre !== nombre);
 
       if (deportesActualizados.length === deportes.length) {
-        // Si la longitud es la misma, el deporte no fue eliminado
+        // Si la longitud es la misma de los arreglos, el deporte no fue eliminado
         return res.status(404).send("El deporte no existe en la lista.");
       }
 
       // Escribir la lista actualizada en el archivo
-      fs.writeFileSync("Deportes.json", JSON.stringify({ deportes: deportesActualizados }));
+      fs.writeFileSync(
+        "Deportes.json",
+        JSON.stringify({ deportes: deportesActualizados })
+      );
 
       res.send("Deporte eliminado correctamente");
     } catch (error) {
@@ -193,7 +191,9 @@ app.get("/eliminar/:nombre", (req, res) => {
   }
 });
 
+//------------------REQUERIMIENTO 5-----------------
+
 // Ruta genérica para manejar solicitudes a rutas no existentes
-app.get('*', (req, res) => {
+app.get("*", (req, res) => {
   res.status(404).send("La ruta solicitada no existe en el servidor.");
 });
